@@ -1,69 +1,75 @@
 # Better Debug (pyserial)
 
-一个基于 `pyserial` 的串口调试/打印工具：
+一个基于 `pyserial` 的跨平台串口调试/打印工具，提供 CLI 和 GUI 两种使用模式。
 
-- CLI：终端交互收发、可脚本化/可重定向
-- GUI：基于 Qt（PySide6）的跨平台界面（Windows / Linux / macOS）
+- **CLI (命令行)**：适合快速交互、脚本化调用、重定向输出。
+- **GUI (图形界面)**：基于 Qt (PySide6)，提供多标签页分流、动态表格刷新、ANSI 颜色支持等高级功能。
 
-本仓库的目标是：
+本项目的目标是提供一个“连接稳定、打印清晰、发送格式灵活”的现代化串口助手，并保持代码结构清晰，易于扩展。
 
-- 先保证“连接稳定 + 打印清晰 + 多格式发送好用”
-- 再保证“代码结构清晰、好加功能、好测”
+## 核心特性
 
-> 说明：当前版本是一个可运行的 MVP，串口基础能力已齐；后续会逐步把更多“串口助手”常见能力补齐（见下方 Roadmap）。
+- **双模式运行**：
+    - CLI：交互式 Shell，支持命令补全和历史记录（依赖终端能力）。
+    - GUI：跨平台（Windows/Linux/macOS），现代化界面。
+- **灵活的发送功能**：
+    - 支持 Text (可转义), Hex, Base64, C-struct 数组 (u16/i16), 文件发送。
+    - 支持多种行尾格式 (None, LF, CR, CRLF)。
+- **强大的接收显示**：
+    - 支持 Text (自动解码), Hex, Both (同时显示) 三种模式。
+    - 支持时间戳显示。
+    - **自动 Tag 分流**：自动识别日志中的 `[tag]` 并分流到独立标签页。
+    - **动态表格 (Table)**：支持通过特定协议头自动创建并刷新表格视图。
+    - **ANSI 颜色支持**：正确解析并显示终端颜色代码。
+- **日志记录**：支持将 TX/RX 数据以 HEX 格式记录到文件，便于回放分析。
 
 ## 安装
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+### 1. 环境准备
 
-## 安装（GUI 版）
-
-GUI 使用 Qt（PySide6），支持 Windows / Linux / macOS。
-
-```powershell
-pip install -r requirements-gui.txt
-```
-
-## 快速开始（建议流程）
-
-### 1) 创建虚拟环境
+确保已安装 Python 3.8 或更高版本。建议使用虚拟环境：
 
 ```powershell
 python -m venv .venv
+# Windows
 .\.venv\Scripts\Activate.ps1
+# Linux/macOS
+# source .venv/bin/activate
 ```
 
-### 2) 安装依赖
+### 2. 安装依赖
 
-- 只用 CLI：
+根据需要选择安装：
+
+- **仅使用 CLI**：
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-- 要用 GUI：
+- **使用 GUI (推荐)**：
 
 ```powershell
 pip install -r requirements-gui.txt
 ```
 
-## 列出串口
+## 快速开始
+
+### 列出可用串口
 
 ```powershell
 python -m better_debug --list
 ```
 
-## 连接并交互
+### 启动 CLI 模式
+
+连接 COM3，波特率 115200，同时显示 Text 和 Hex，开启时间戳：
 
 ```powershell
 python -m better_debug --port COM3 --baud 115200 --rx both --eol crlf --timestamp --log serial.log
 ```
 
-## 启动 GUI
+### 启动 GUI 模式
 
 ```powershell
 python -m better_debug --gui
@@ -71,248 +77,136 @@ python -m better_debug --gui
 
 ---
 
-# 功能说明（现有）
+# 功能详解
 
-## 1) 通用串口能力
+## 1. CLI 交互模式
 
-- 端口枚举（CLI：`--list`；GUI：Refresh）
-- 打开/关闭串口
-- 常用串口参数
-	- CLI 已支持：`baud/bytesize/parity/stopbits/xonxoff/rtscts/dsrdtr/timeout`
-	- GUI 当前版本：提供 `port/baud/encoding/eol/rx mode`，以及 `xonxoff/rtscts/dsrdtr` 开关
-- 可选时间戳（CLI：`--timestamp`；GUI：Timestamp）
-- 可选日志（按 HEX 记录 TX/RX）
+启动 CLI 后，你可以直接输入文本发送，或使用以 `:` 开头的命令进行控制。
 
-## 2) 接收打印（RX）
+### 常用命令
 
-支持 3 种显示模式：
+- `:help`：显示帮助信息。
+- `:quit`：退出程序。
+- `:flush`：清空接收缓冲区。
+- `:rx <text|hex|both>`：切换接收显示模式。
+- `:encoding <name>`：切换文本编码 (如 utf-8, gbk, ascii)。
+- `:eol <none|lf|cr|crlf>`：设置发送文本时的行尾符。
 
-- `text`：按指定编码解码（默认 `utf-8`，错误用替换字符兜底）
-- `hex`：按十六进制显示（大写，空格分隔）
-- `both`：同时输出 text 与 hex
+### 发送命令
 
-CLI 使用 `--rx text|hex|both`；GUI 在界面里选择 `RX` 模式。
+- **文本**：直接输入内容（不以 `:` 开头），或使用 `:text <content>`。
+- **十六进制**：`:hex AA 55 01 02` (支持空格、冒号等分隔符)。
+- **Base64**：`:b64 <base64_string>` (解码后发送原始字节)。
+- **16位整数列表**：
+    - `:u16le 0x1234 100` (小端无符号)
+    - `:u16be 0x1234 100` (大端无符号)
+    - `:i16le -123 456` (小端有符号)
+- **文件**：`:file <path/to/file>` (发送文件的原始内容)。
 
-## 3) 发送（TX）——多种格式
+## 2. GUI 界面功能
 
-### 3.1 文本发送（text）
+### 界面概览
 
-- CLI：
-	- 直接输入一行（不以 `:` 开头）：作为文本发送
-	- 或用 `:text <payload>`
-- GUI：Send as = `text`
+- **左侧设置栏**：
+    - **Port/Baud**：串口参数设置。
+    - **Encoding/EOL**：编码与行尾设置。
+    - **RX Mode**：接收显示模式 (Text/Hex/Both)。
+    - **开关项**：XON/XOFF, RTS/CTS, DSR/DTR, Escapes (转义支持), Timestamp (时间戳)。
+    - **Log**：日志文件路径设置。
+    - **控制按钮**：Open/Close, Flush, Pause, Clear。
+    - *注：左侧栏宽度可拖动调节，过窄时会自动隐藏。*
+- **右侧接收区**：
+    - 多标签页设计，默认包含 `[ALL]` 标签，显示所有数据。
+    - 支持 ANSI 颜色显示。
+- **右侧发送区**：
+    - 支持多行文本输入。
+    - **Send as**：下拉选择发送格式 (Text, Hex, Base64, u16le, etc.)。
 
-文本发送会追加行尾（EOL）：`none/lf/cr/crlf`。
+### 高级特性：自动 Tag 分流
 
-### 3.2 HEX 发送（hex）
+当接收到的日志行符合 `[tag]message` 格式（且 `tag` 以字母开头）时，GUI 会自动创建一个名为 `[tag]` 的新标签页，并将该行内容分流到该标签页中。
 
-支持以下输入：
+- `[ALL]` 标签页始终包含所有内容。
+- `[tag]` 标签页只包含对应 tag 的内容。
+- 适合多模块调试（如 `[wifi]`, `[bt]`, `[sensor]` 分离显示）。
 
-- `AA55`（紧凑写法）
-- `AA 55 01 02`（空格）
-- `AA:55;01,02`（任意分隔符）
-- `0xAA,0x55`（带 `0x` 的 token 序列）
+### 高级特性：动态表格 (Table)
 
-### 3.3 Base64 发送（base64 / b64）
+GUI 支持一种特殊的协议头，用于在独立的标签页中刷新显示表格或状态信息。
 
-用于从外部复制 base64 数据直接发送原始字节。
+**协议格式**：
 
-### 3.4 16-bit word 发送（u16/i16）
+1.  **开始刷新**：`[&Table][TableName][Start]`
+2.  **数据内容**：任意文本行
+3.  **结束刷新**：`[&Table][TableName][End]`
 
-用于“按 word(16-bit) 序列”发送（常见于协议/寄存器场景），并且可选端序：
+**行为逻辑**：
 
-- `u16le`：无符号 16 位，小端（`0x1234 -> 34 12`）
-- `u16be`：无符号 16 位，大端（`0x1234 -> 12 34`）
-- `i16le`：有符号 16 位，小端
-- `i16be`：有符号 16 位，大端
+- 当收到 `[&Table][MyStatus][Start]` 时：
+    - 自动创建（或聚焦）名为 `[MyStatus]` 的标签页。
+    - **清空** 该标签页的现有内容。
+    - 进入“表格模式”。
+- 在 Start 和 End 之间的所有接收内容，会实时追加到 `[MyStatus]` 标签页中。
+- 收到 `[&Table][MyStatus][End]` 后，退出“表格模式”。
 
-### 3.5 发送文件（file）
+**应用场景**：
+周期性打印系统状态（如 CPU 占用、内存池状态、任务列表），每次打印前自动清屏，实现类似 `top` 命令的动态刷新效果。
 
-把文件按“原始字节”发送。
+## 3. 发送格式详解
 
----
-
-# CLI 使用指南
-
-## 1) 常用参数
-
-示例：
-
-```powershell
-python -m better_debug --port COM3 --baud 115200 --rx both --eol crlf --timestamp --log serial.log
-```
-
-说明：
-
-- `--port`：串口名（Windows 常见为 `COM3`）
-- `--baud`：波特率
-- `--encoding`：文本解码/编码（默认 `utf-8`）
-- `--eol`：文本发送追加的行尾（默认 `crlf`）
-- `--escapes`：开启后，文本发送支持 `\n \r \t \xNN` 等转义
-- `--log`：把 TX/RX 以 HEX 行写入文件
-
-## 2) 交互命令（以 `:` 开头）
-
-进入后输入 `:help` 会显示内置帮助。常用命令：
-
-- `:quit`：退出
-- `:flush`：清空接收缓冲
-- `:rx text|hex|both`：切换 RX 显示
-- `:encoding <name>`：切换编码
-- `:eol none|lf|cr|crlf`：切换文本发送行尾
-- `:text <payload>`
-- `:hex <AA 55 01 02>`
-- `:b64 <base64>`
-- `:u16le <n1 n2 ...>` / `:u16be ...`
-- `:i16le <n1 n2 ...>` / `:i16be ...`
-- `:file <path>`
+| 模式 | 说明 | 示例输入 | 发送数据 (Hex) |
+| :--- | :--- | :--- | :--- |
+| **text** | 普通文本，支持转义 (需开启 Escapes) | `Hello\n` | `48 65 6C 6C 6F 0A` |
+| **hex** | 十六进制字符串 | `AA 55 01` | `AA 55 01` |
+| **base64** | Base64 解码 | `SGVsbG8=` | `48 65 6C 6C 6F` |
+| **u16le** | 16位小端整数序列 | `0x1234 10` | `34 12 0A 00` |
+| **u16be** | 16位大端整数序列 | `0x1234 10` | `12 34 00 0A` |
+| **file** | 文件内容 | `firmware.bin` | (文件原始内容) |
 
 ---
 
-# GUI 使用指南
+# 开发与构建
 
-## 1) 界面元素
+## 运行测试
 
-- 顶部工具栏：
-	- 左侧：Serial（当前功能，高亮）
-	- 右侧：Settings（进入软件设置页：风格/字体/字体大小/文本颜色）
-- 主页面（Serial）：
-	- 左侧参数栏：从上到下依次排列（默认宽度 240），可拖动分割条改变宽度；窗口宽度缩小到阈值时会自动隐藏
-	- 右侧：
-		- 接收区：顶部标签栏（类似浏览器 Tab），默认 `[ALL]`，并按 `[tag]message` 自动生成对应标签
-		- 发送区：多行文本输入框（可通过分割条调节高度，默认约 120）+ Send
-
-## 2) GUI 的日志
-
-如果 Log 路径不为空：
-
-- 每行格式：`[可选时间戳] TX|RX <HEX...>`
-- 便于后期做“回放/对比/问题定位”
-
-## 3) 接收区 Tab 分流
-
-当接收文本行满足形如：`[wifi]xxx`、`[bt]xxx`、`[system]xxx` 这种“行首 tag”格式时：
-
-- `[ALL]`：始终包含所有接收输出
-- `[wifi]` / `[bt]` / ...：只显示对应 tag 的行
-
-不同 Tab 的数据彼此独立；切换 Tab 不会丢失之前的输出。
-
-补充规则：只有 tag 的首字符为英文字母（`A-Z` 或 `a-z`）时，才会自动创建对应标签页（例如 `[00:11:22][debug]...` 会进入 `[debug]`，但 `[00:11:22][123]...` 不会创建 `[123]`）。
-
----
-
-# 代码结构与开发文档
-
-## 1) 模块划分
-
-- `better_debug/formats.py`
-	- 负责“多格式输入 -> bytes”的解析
-	- 典型函数：
-		- `parse_hex_string()`：HEX 输入解析
-		- `parse_u16_list()/parse_i16_list()`：word 序列打包
-		- `parse_base64()`：base64 解码
-		- `apply_text_escapes()`：文本转义解析
-- `better_debug/monitor.py`
-	- CLI 用的串口读线程与收发封装
-	- `SerialMonitor`：负责打开串口、后台 read、打印、可选日志
-- `better_debug/cli.py`
-	- CLI 参数解析、交互命令解析、把用户输入转成 bytes 并调用 `SerialMonitor.send()`
-	- `--gui` 入口也放在这里，便于统一从 `python -m better_debug` 启动
-- `better_debug/gui.py`
-	- Qt GUI 实现
-	- 采用“后台线程读串口 + Qt Signal 发到 UI”的模型，避免阻塞界面
-- `tests/test_formats.py`
-	- 解析层单测（不依赖真实串口硬件，跑得快、稳定）
-
-## 2) 线程模型/数据流（关键点）
-
-### CLI
-
-- 主线程：读取 stdin（你的输入）并调用 `send()`
-- 后台线程：循环 `serial.read()`，拿到数据后直接输出到 stdout，并可写日志
-
-### GUI
-
-- UI 线程（Qt 主线程）：负责渲染与响应按钮
-- 后台线程：循环 `serial.read()`
-- 用 Qt Signal：把 `bytes` 发回 UI 线程进行显示
-
-这个模型的目标是：
-
-- 串口读不会卡 UI
-- UI 更新线程安全
-
-## 3) 如何新增“发送格式”（推荐扩展点）
-
-以新增 `u32le/u32be` 为例（示意流程）：
-
-1) 在 `better_debug/formats.py` 增加解析/打包函数（并抛出 `FormatError`）
-2) 在 `better_debug/cli.py`：
-	 - `:u32le` 命令分支里调用新的解析函数
-3) 在 `better_debug/gui.py`：
-	 - `Send as` 下拉框里新增 `u32le/u32be`
-	 - 在 `on_send()` 里增加对应分支
-4) 在 `tests/` 增加单测
-
-为什么建议这么做：
-
-- 解析逻辑集中在 `formats.py`，方便测试/复用
-- CLI/GUI 都只是“薄薄的一层壳”
-
-## 4) 如何新增“接收显示”能力
-
-- CLI：修改 `better_debug/monitor.py` 的 `_emit()`
-- GUI：修改 `better_debug/gui.py` 的 `on_rx()`
-
-建议：尽量保持“显示层不做协议解析”，协议解析如果要做，最好单独建一个模块（后续如果你需要，我再按你的协议结构来设计）。
-
-## 5) 如何新增/扩展日志格式
-
-当前日志是最通用的 HEX 行格式（便于肉眼排查，也便于后续解析）。
-
-如需更结构化（JSONL、CSV、按帧分段、带方向/时间/统计），建议新增一个 `logger.py` 统一封装，然后 CLI/GUI 共用。
-
----
-
-# 测试与验证
-
-## 单元测试
+项目包含基于 `pytest` 的单元测试，主要覆盖格式解析逻辑。
 
 ```powershell
 python -m pytest
 ```
 
-当前测试覆盖：多格式解析（HEX、u16/i16、escapes 等）。
+## 构建可执行文件 (EXE)
 
-## 串口硬件验证建议
+项目提供了构建脚本，使用 PyInstaller 将 GUI 版本打包为单文件 EXE。
 
-- Windows：可用 USB-TTL 或虚拟串口对（例如 com0com）做 loopback
-- Linux/macOS：可用 `socat` 创建伪终端对（PTY）做 loopback
+1.  确保已安装 GUI 依赖。
+2.  运行构建脚本：
 
----
+```powershell
+.\build.ps1
+```
 
-# Roadmap（计划补齐的功能）
-
-以下是“典型串口调试助手常见能力”，会按优先级逐步加入：
-
-1) GUI 暴露更多串口参数：bytesize/parity/stopbits/flow control
-2) 发送区增强：多行文本、历史记录、常用发送条目（快捷按钮）
-3) 自动重复发送：周期发送/次数限制
-4) 配置持久化：记住上次端口/波特率/编码/窗口布局
-5) 更友好的 RX 显示：自动滚动开关、清屏、过滤不可见字符（不做“协议过滤器/复杂过滤器”，保持简单）
+构建产物将位于 `release/BetterDebug.exe`。
 
 ---
 
-# 常见问题（FAQ）
+# Roadmap
 
-## 1) 找不到串口
+- [ ] **更多串口参数**：在 GUI 中暴露 Parity, Stopbits, Bytesize 等高级设置。
+- [ ] **发送增强**：发送历史记录、快捷发送列表（常用指令集）。
+- [ ] **自动发送**：支持定时循环发送。
+- [ ] **配置持久化**：记住上次使用的端口、波特率和窗口布局（已部分实现）。
+- [ ] **波形显示**：简单的数值波形绘制。
 
-- Windows：检查设备管理器里的 COM 号；权限一般不是问题
-- Linux：可能需要把用户加入 `dialout` 组或用 `sudo`（不推荐长期使用）
-- macOS：通常在 `/dev/cu.*` 下
+---
 
-## 2) GUI 无法启动
+# 常见问题 (FAQ)
 
-- 确认安装了 GUI 依赖：`pip install -r requirements-gui.txt`
-- 若环境是最小化/无 GUI（例如服务器），请使用 CLI 模式
+**Q: 找不到串口？**
+A: 请检查设备是否连接，驱动是否安装。在 Windows 上查看设备管理器；在 Linux 上检查用户是否有 `dialout` 组权限。
+
+**Q: GUI 无法启动？**
+A: 请确认已安装 `requirements-gui.txt` 中的依赖。如果是在无图形界面的服务器上，请使用 CLI 模式。
+
+**Q: 接收到的中文乱码？**
+A: 请尝试在设置中切换 Encoding（如 `utf-8` 改为 `gbk`）。
